@@ -1,0 +1,174 @@
+name: Build and Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (skip PyPI upload)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  build-sdist:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with: { submodules: recursive }
+    
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    
+    - name: Build sdist
+      run: |
+        pip install maturin
+        maturin sdist
+    
+    - uses: actions/upload-artifact@v4
+      with:
+        name: sdist
+        path: target/wheels/*.tar.gz
+        if-no-files-found: error
+
+  build-linux:
+    runs-on: ubuntu-latest
+    container: quay.io/pypa/manylinux2014_x86_64
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["cp39-cp39", "cp310-cp310", "cp311-cp311", "cp312-cp312", "cp313-cp313"]
+
+    steps:
+    - uses: actions/checkout@v4
+      with: { submodules: recursive }
+
+    - name: Install build deps
+      run: |
+        yum install -y git make gcc gcc-c++ pkgconfig
+        yum install -y openblas-devel
+
+    - name: Build libxsmm
+      run: |
+        git clone --depth 1 https://github.com/libxsmm/libxsmm.git /tmp/libxsmm
+        make -C /tmp/libxsmm STATIC=1 -j$(nproc)
+
+    - name: Install Rust
+      run: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+        source $HOME/.cargo/env
+
+    - name: Build wheel
+      run: |
+        source $HOME/.cargo/env
+        /opt/python/${{ matrix.python }}/bin/python -m pip install maturin numpy
+        RUSTFLAGS="-L native=/tmp/libxsmm/lib" /opt/python/${{ matrix.python }}/bin/python -m maturin build \
+          --release \
+          --compatibility manylinux2014 \
+          --features use-libxsmm \
+          -i /opt/python/${{ matrix.python }}/bin/python
+
+    - name: Repair wheel
+      run: |
+        mkdir -p dist
+        /opt/python/${{ matrix.python }}/bin/python -m pip install auditwheel
+        for whl in target/wheels/*.whl; do
+          /opt/python/${{ matrix.python }}/bin/python -m auditwheel repair "$whl" \
+            --wheel-dir dist/ \
+            --plat manylinux2014_x86_64
+        done
+
+    - name: Test wheel
+      run: |
+        /opt/python/${{ matrix.python }}/bin/python -m pip install dist/*.whl numpy
+        /opt/python/${{ matrix.python }}/bin/python -c "
+import maxsim_cpu
+import numpy as np
+q = np.random.randn(4, 128).astype(np.float32)
+q = q / np.linalg.norm(q, axis=1, keepdims=True)
+d = np.random.randn(2, 8, 128).astype(np.float32)
+d = d / np.linalg.norm(d, axis=2, keepdims=True)
+scores = maxsim_cpu.maxsim_scores(q, d)
+assert scores.shape == (2,), f'Expected shape (2,), got {scores.shape}'
+print('✓ MaxSim CPU test passed')
+"
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: wheels-linux-${{ matrix.python }}
+        path: dist/*.whl
+        if-no-files-found: error
+
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+    - uses: actions/checkout@v4
+      with: { submodules: recursive }
+
+    - uses: dtolnay/rust-toolchain@stable
+    
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python }}
+
+    - name: Build wheel
+      run: |
+        pip install maturin numpy
+        maturin build --release --compatibility macosx_11_0_arm64
+
+    - name: Test wheel
+      run: |
+        pip install target/wheels/*.whl
+        python -c "
+import maxsim_cpu
+import numpy as np
+q = np.random.randn(4, 128).astype(np.float32)
+q = q / np.linalg.norm(q, axis=1, keepdims=True)
+d = np.random.randn(2, 8, 128).astype(np.float32)
+d = d / np.linalg.norm(d, axis=2, keepdims=True)
+scores = maxsim_cpu.maxsim_scores(q, d)
+assert scores.shape == (2,), f'Expected shape (2,), got {scores.shape}'
+print('✓ MaxSim CPU test passed')
+"
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: wheels-macos-${{ matrix.python }}
+        path: target/wheels/*.whl
+        if-no-files-found: error
+
+  publish:
+    needs: [build-sdist, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true')
+    
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: '*'
+        merge-multiple: true
+        path: dist/
+
+    - name: Show artifacts
+      run: |
+        echo "📦 Artifacts to publish:"
+        ls -la dist/
+        echo
+        echo "📊 File details:"
+        file dist/*
+
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ secrets.PYPI_TOKEN }}
+        packages-dir: dist/
+        skip-existing: true
+        verbose: true
+        print-hash: true
