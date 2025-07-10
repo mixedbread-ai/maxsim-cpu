@@ -1,8 +1,8 @@
-name: Build wheels (dry run)
+name: Build and Release to PyPI
 
 on:
-  push:
-    branches: [ main ]        # adjust if you use a different default branch
+  release:
+    types: [published]        # activate on published releases
   workflow_dispatch:          # manual trigger
 
 jobs:
@@ -114,3 +114,50 @@ jobs:
           target/wheels/*.whl
           dist/*.whl
         if-no-files-found: error
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # Publish on both releases and manual workflow runs
+    permissions:
+      id-token: write  # Required for PyPI trusted publishing via OIDC
+    
+    steps:
+    - name: Download all wheels
+      uses: actions/download-artifact@v4
+      with:
+        pattern: wheels-*
+        merge-multiple: true
+    
+    - name: Prepare wheels for publishing
+      run: |
+        # Debug: Show what was downloaded
+        echo "=== All files after artifact download ==="
+        find . -type f | grep -E '\.(whl|zip)$' | sort
+        echo "========================================="
+        
+        # Create clean dist directory
+        mkdir -p dist/
+        
+        # Find all wheel files and move them to dist/
+        find . -name "*.whl" -type f -exec mv {} dist/ \;
+        
+        # Verify we have wheels, not zips
+        echo "=== Wheels ready for publishing in dist/ ==="
+        ls -la dist/
+        if [ -z "$(ls -A dist/)" ]; then
+          echo "ERROR: No wheel files found in dist/"
+          exit 1
+        fi
+        echo "==========================================="
+    
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        user: __token__
+        password: ${{ secrets.PYPI_TOKEN }}
+        repository-url: https://upload.pypi.org/legacy/
+        packages-dir: dist/
+        skip-existing: true
+        verbose: true
