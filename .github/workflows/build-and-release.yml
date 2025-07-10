@@ -83,17 +83,17 @@ jobs:
     - name: Test wheel
       run: |
         /opt/python/${{ matrix.python }}/bin/python -m pip install dist/*.whl numpy
-        /opt/python/${{ matrix.python }}/bin/python -c "
-import maxsim_cpu
-import numpy as np
-q = np.random.randn(4, 128).astype(np.float32)
-q = q / np.linalg.norm(q, axis=1, keepdims=True)
-d = np.random.randn(2, 8, 128).astype(np.float32)
-d = d / np.linalg.norm(d, axis=2, keepdims=True)
-scores = maxsim_cpu.maxsim_scores(q, d)
-assert scores.shape == (2,), f'Expected shape (2,), got {scores.shape}'
-print('✓ MaxSim CPU test passed')
-"
+        /opt/python/${{ matrix.python }}/bin/python << 'EOF'
+        import maxsim_cpu
+        import numpy as np
+        q = np.random.randn(4, 128).astype(np.float32)
+        q = q / np.linalg.norm(q, axis=1, keepdims=True)
+        d = np.random.randn(2, 8, 128).astype(np.float32)
+        d = d / np.linalg.norm(d, axis=2, keepdims=True)
+        scores = maxsim_cpu.maxsim_scores(q, d)
+        assert scores.shape == (2,), f'Expected shape (2,), got {scores.shape}'
+        print('✓ MaxSim CPU test passed')
+        EOF
 
     - uses: actions/upload-artifact@v4
       with:
@@ -126,17 +126,17 @@ print('✓ MaxSim CPU test passed')
     - name: Test wheel
       run: |
         pip install target/wheels/*.whl
-        python -c "
-import maxsim_cpu
-import numpy as np
-q = np.random.randn(4, 128).astype(np.float32)
-q = q / np.linalg.norm(q, axis=1, keepdims=True)
-d = np.random.randn(2, 8, 128).astype(np.float32)
-d = d / np.linalg.norm(d, axis=2, keepdims=True)
-scores = maxsim_cpu.maxsim_scores(q, d)
-assert scores.shape == (2,), f'Expected shape (2,), got {scores.shape}'
-print('✓ MaxSim CPU test passed')
-"
+        python << 'EOF'
+        import maxsim_cpu
+        import numpy as np
+        q = np.random.randn(4, 128).astype(np.float32)
+        q = q / np.linalg.norm(q, axis=1, keepdims=True)
+        d = np.random.randn(2, 8, 128).astype(np.float32)
+        d = d / np.linalg.norm(d, axis=2, keepdims=True)
+        scores = maxsim_cpu.maxsim_scores(q, d)
+        assert scores.shape == (2,), f'Expected shape (2,), got {scores.shape}'
+        print('✓ MaxSim CPU test passed')
+        EOF
 
     - uses: actions/upload-artifact@v4
       with:
