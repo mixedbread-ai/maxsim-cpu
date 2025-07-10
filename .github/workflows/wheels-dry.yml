@@ -1,8 +1,8 @@
 name: Build wheels (dry run)
 
 on:
-  push:
-    branches: [ main ]        # adjust if you use a different default branch
+  release:
+    types: [published]        # activate on published releases
   workflow_dispatch:          # manual trigger
 
 jobs:

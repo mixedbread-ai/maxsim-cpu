@@ -134,4 +134,4 @@ For documents of uniform lengths, performance on Linux is slower than Jax on 4 c
 
 *It seems our performance was hindered during benchmarking due to a Rayon config issue when limiting the available cores. Leaving reporting as-is for now but performance is expected to be considerably better on an actual 16-core CPU.*
 
-![Linux AMD EPYC 16 core performance](speedup_comparisons/maxsim_speedup_316cores.png)
+![Linux AMD EPYC 16 core performance](speedup_comparisons/maxsim_speedup_16cores.png)

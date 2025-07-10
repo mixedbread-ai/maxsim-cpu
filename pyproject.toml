@@ -10,7 +10,7 @@ requires-python = ">=3.8"
 dependencies = ["numpy>=1.20"]
 readme = "README.md"
 license = {text = "Apache-2.0"}
-authors = [{name = "Benjamin Clavié"}]
+authors = [{name = "Benjamin Clavié"}, {name = "Mixedbread Team"}]
 keywords = ["maxsim", "similarity", "ranking", "cpu", "simd", "performance"]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -27,8 +27,8 @@ classifiers = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/bclavie/maxsim-cpu"
-"Bug Tracker" = "https://github.com/bclavie/maxsim-cpu/issues"
+"Homepage" = "https://github.com/mixedbread-ai/maxsim-cpu"
+"Bug Tracker" = "https://github.com/mixedbread-ai/maxsim-cpu/issues"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
