@@ -1,0 +1,32 @@
+[package]
+name = "maxsim-cpu"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[lib]
+name = "maxsim_cpu"
+crate-type = ["cdylib"]
+
+[dependencies]
+rayon   = "1.10"
+numpy   = "0.18"
+pyo3    = { version = "0.18", features = ["extension-module"] }
+blas    = "0.23"
+libc    = "0.2"
+
+# Use Accelerate on macOS (fast, no compilation)
+[target.'cfg(target_os = "macos")'.dependencies]
+blas-src = { version = "0.11", default-features = false, features = ["accelerate"] }
+
+# On Linux, we'll use system BLAS - no blas-src needed!
+
+[features]
+default = []
+use-libxsmm = []
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+panic = "abort"
+strip = "symbols"
